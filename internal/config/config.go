@@ -11,6 +11,7 @@ type Config struct {
 	DatabaseURL string `env:"DATABASE_URL,required"`
 	// JWTSecret   string `env:"JWT_SECRET,required"`
 	Environment string `env:"ENVIRONMENT" envDefault:"development"`
+	RedisURL    string `env:"REDIS_URL" envDefault:"redis://localhost:6379"`
 }
 
 func Load() (*Config, error) {

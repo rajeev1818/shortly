@@ -14,9 +14,11 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rajeev1818/shortly/internal/config"
+	urlcache "github.com/rajeev1818/shortly/internal/shortener/cache"
 	"github.com/rajeev1818/shortly/internal/shortener/handler"
 	"github.com/rajeev1818/shortly/internal/shortener/repository"
 	"github.com/rajeev1818/shortly/internal/shortener/service"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -37,6 +39,21 @@ func main() {
 	}
 	defer pool.Close()
 
+	opt, err := redis.ParseURL(cfg.RedisURL)
+
+	if err != nil {
+		slog.Error("failed to parse redis url", "error", err)
+		os.Exit(1)
+	}
+	redisClient := redis.NewClient(opt)
+	defer redisClient.Close()
+
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		slog.Error("failed to connect to redis", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("redis connected")
+
 	migrationSQL, err := os.ReadFile("migrations/001_url.sql")
 
 	if err != nil {
@@ -51,7 +68,8 @@ func main() {
 	slog.Info("migrations applied")
 
 	repo := repository.NewURLRepository(pool)
-	svc := service.NewURLService(repo)
+	redisCache := urlcache.NewRedisCache(redisClient)
+	svc := service.NewURLService(repo, redisCache)
 	h := handler.NewHandler(svc)
 
 	r := chi.NewRouter()
