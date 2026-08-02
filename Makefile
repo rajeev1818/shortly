@@ -1,5 +1,5 @@
 .PHONY: up down logs ps \
-        psql redis-cli kafka-produce kafka-consume kafka-topics
+        psql redis-cli kafka-produce kafka-consume kafka-topics proto
 
 up:
 	docker compose up -d
@@ -42,3 +42,9 @@ kafka-consume:
 kafka-topics:
 	docker exec shortly_kafka \
 		/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+
+proto:
+	protoc \
+		--go_out=. --go_opt=paths=source_relative \
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		proto/shortener.proto

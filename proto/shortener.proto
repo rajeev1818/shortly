@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package shortener.v1;
+
+option go_package = "github.com/rajeev1818/shortly/gen/shortener/v1";
+
+service ShortenerService {
+    rpc Shorten(ShortenRequest) returns (ShortenResponse);
+    rpc Resolve(ResolveRequest) returns (ResolveResponse);
+}
+message ShortenRequest  { string long_url = 1; }
+message ShortenResponse { string short_code = 1; }
+message ResolveRequest  { string short_code = 1; }
+message ResolveResponse { string long_url = 1; }

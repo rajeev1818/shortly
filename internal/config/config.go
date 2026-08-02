@@ -6,19 +6,31 @@ import (
 	"github.com/caarlos0/env"
 )
 
-type Config struct {
-	Port        int    `env:"PORT" envDefault:"8080"`
+type ShortenerConfig struct {
+	Port        int    `env:"PORT" envDefault:"9090"`
 	DatabaseURL string `env:"DATABASE_URL,required"`
-	// JWTSecret   string `env:"JWT_SECRET,required"`
-	Environment string `env:"ENVIRONMENT" envDefault:"development"`
 	RedisURL    string `env:"REDIS_URL" envDefault:"redis://localhost:6379"`
 }
 
-func Load() (*Config, error) {
-	cfg := &Config{}
+type GatewayConfig struct {
+	Port          int    `env:"PORT" envDefault:"8080"`
+	ShortenerAddr string `env:"SHORTENER_ADDR" envDefault:"localhost:9090"`
+}
+
+func LoadShortenerConfig() (*ShortenerConfig, error) {
+	cfg := &ShortenerConfig{}
 
 	if err := env.Parse(cfg); err != nil {
-		return nil, fmt.Errorf("parsing config: %w", err)
+		return nil, fmt.Errorf("parsing shortener config: %w", err)
+	}
+	return cfg, nil
+}
+
+func LoadGatewayConfig() (*GatewayConfig, error) {
+	cfg := &GatewayConfig{}
+
+	if err := env.Parse(cfg); err != nil {
+		return nil, fmt.Errorf("parsing gateway config: %w", err)
 	}
 	return cfg, nil
 }

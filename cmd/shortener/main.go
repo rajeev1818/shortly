@@ -2,29 +2,27 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
-	"net/http"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rajeev1818/shortly/internal/config"
 	urlcache "github.com/rajeev1818/shortly/internal/shortener/cache"
-	"github.com/rajeev1818/shortly/internal/shortener/handler"
+	grpchandler "github.com/rajeev1818/shortly/internal/shortener/grpc"
 	"github.com/rajeev1818/shortly/internal/shortener/repository"
 	"github.com/rajeev1818/shortly/internal/shortener/service"
+	shortenerv1 "github.com/rajeev1818/shortly/proto"
 	"github.com/redis/go-redis/v9"
+	"google.golang.org/grpc"
 )
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
-	cfg, err := config.Load()
+	cfg, err := config.LoadShortenerConfig()
 	if err != nil {
 		slog.Error("failed to load config", "error", err)
 		os.Exit(1)
@@ -70,33 +68,22 @@ func main() {
 	repo := repository.NewURLRepository(pool)
 	redisCache := urlcache.NewRedisCache(redisClient)
 	svc := service.NewURLService(repo, redisCache)
-	h := handler.NewHandler(svc)
 
-	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
+	grpcHandler := grpchandler.NewServer(svc)
+	grpcServer := grpc.NewServer()
+	shortenerv1.RegisterShortenerServiceServer(grpcServer, grpcHandler)
 
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"ok"}`))
-	})
+	lis, err := net.Listen("tcp", ":9090")
 
-	r.Post("/shorten", h.Shorten)
-	r.Get("/{code}", h.Redirect)
-
-	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Port),
-		Handler:      r,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+	if err != nil {
+		slog.Error("failed to listen", "error", err)
+		os.Exit(1)
 	}
 
 	go func() {
-		slog.Info("server starting", "port", cfg.Port)
-		if err := server.ListenAndServe(); err != http.ErrServerClosed {
-			slog.Error("server error", "error", err)
+		slog.Info("grpc server starting", "port", 9090)
+		if err := grpcServer.Serve(lis); err != nil {
+			slog.Error("grpc server error", "error", err)
 			os.Exit(1)
 		}
 	}()
@@ -104,12 +91,7 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	slog.Info("shutting down server...")
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if err := server.Shutdown(ctx); err != nil {
-		slog.Error("forced shutdown", "error", err)
-	}
+	slog.Info("shutting down grpc server...")
+	grpcServer.GracefulStop()
 	slog.Info("server stopped")
 }
