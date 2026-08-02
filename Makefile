@@ -1,5 +1,8 @@
 .PHONY: up down logs ps \
-        psql redis-cli kafka-produce kafka-consume kafka-topics proto
+        psql redis-cli kafka-produce kafka-consume kafka-topics proto build
+
+build:
+	docker compose build
 
 up:
 	docker compose up -d

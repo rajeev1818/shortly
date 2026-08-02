@@ -14,7 +14,9 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/rajeev1818/shortly/cmd/gateway/handler"
 	"github.com/rajeev1818/shortly/internal/config"
+	"github.com/rajeev1818/shortly/internal/gateway/ratelimit"
 	shortenerv1 "github.com/rajeev1818/shortly/proto"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -41,9 +43,21 @@ func main() {
 
 	h := handler.NewHandler(shortenerClient)
 
+	opt, err := redis.ParseURL(cfg.RedisURL)
+
+	if err != nil {
+		slog.Error("failed to parse redis url", "error", err)
+		os.Exit(1)
+	}
+	redisClient := redis.NewClient(opt)
+	defer redisClient.Close()
+
+	limiter := ratelimit.NewLimiter(redisClient, cfg.RateLimit, time.Duration(cfg.RateWindow)*time.Second)
+
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID, middleware.Logger, middleware.Recoverer)
+	r.Use(ratelimit.Middleware(limiter))
 
 	r.Post("/shorten", h.Shorten)
 	r.Get("/{code}", h.Redirect)
