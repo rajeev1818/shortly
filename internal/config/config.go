@@ -7,9 +7,11 @@ import (
 )
 
 type ShortenerConfig struct {
-	Port        int    `env:"PORT" envDefault:"9090"`
-	DatabaseURL string `env:"DATABASE_URL,required"`
-	RedisURL    string `env:"REDIS_URL" envDefault:"redis://localhost:6379"`
+	Port         int      `env:"PORT" envDefault:"9090"`
+	DatabaseURL  string   `env:"DATABASE_URL,required"`
+	RedisURL     string   `env:"REDIS_URL" envDefault:"redis://localhost:6379"`
+	KafkaBrokers []string `env:"KAFKA_BROKERS" envSeparator:","`
+	KafkaTopic   string   `env:"KAFKA_TOPIC" envDefault:"click.events"`
 }
 
 type GatewayConfig struct {
@@ -18,6 +20,13 @@ type GatewayConfig struct {
 	RedisURL      string `env:"REDIS_URL" envDefault:"redis://localhost:6379"`
 	RateLimit     int    `env:"RATE_LIMIT" envDefault:"10"`      // requests per window
 	RateWindow    int    `env:"RATE_WINDOW_SEC" envDefault:"60"` // window in seconds
+}
+
+type AnalyticsConfig struct {
+	DatabaseURL  string   `env:"DATABASE_URL,required"`
+	KafkaBrokers []string `env:"KAFKA_BROKERS" envSeparator:","`
+	KafkaTopic   string   `env:"KAFKA_TOPIC" envDefault:"click.events"`
+	KafkaGroup   string   `env:"KAFKA_GROUP" envDefault:"analytics"`
 }
 
 func LoadShortenerConfig() (*ShortenerConfig, error) {
@@ -34,6 +43,15 @@ func LoadGatewayConfig() (*GatewayConfig, error) {
 
 	if err := env.Parse(cfg); err != nil {
 		return nil, fmt.Errorf("parsing gateway config: %w", err)
+	}
+	return cfg, nil
+}
+
+func LoadAnalyticsConfig() (*AnalyticsConfig, error) {
+	cfg := &AnalyticsConfig{}
+
+	if err := env.Parse(cfg); err != nil {
+		return nil, fmt.Errorf("parsing analytics config: %w", err)
 	}
 	return cfg, nil
 }

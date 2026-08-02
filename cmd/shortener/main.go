@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rajeev1818/shortly/internal/analytics/producer"
 	"github.com/rajeev1818/shortly/internal/config"
 	urlcache "github.com/rajeev1818/shortly/internal/shortener/cache"
 	grpchandler "github.com/rajeev1818/shortly/internal/shortener/grpc"
@@ -52,24 +53,34 @@ func main() {
 	}
 	slog.Info("redis connected")
 
-	migrationSQL, err := os.ReadFile("migrations/001_url.sql")
-
-	if err != nil {
-		slog.Error("failed to read migration", "error", err)
-		os.Exit(1)
+	for _, file := range []string{"migrations/001_url.sql", "migrations/002_click_stats.sql"} {
+		sql, err := os.ReadFile(file)
+		if err != nil {
+			slog.Error("failed to read migration", "file", file, "error", err)
+			os.Exit(1)
+		}
+		if _, err := pool.Exec(ctx, string(sql)); err != nil {
+			slog.Error("failed to run migration", "file", file, "error", err)
+			os.Exit(1)
+		}
 	}
 
-	if _, err := pool.Exec(ctx, string(migrationSQL)); err != nil {
-		slog.Error("failed to run migration", "error", err)
-		os.Exit(1)
-	}
 	slog.Info("migrations applied")
 
 	repo := repository.NewURLRepository(pool)
 	redisCache := urlcache.NewRedisCache(redisClient)
 	svc := service.NewURLService(repo, redisCache)
 
-	grpcHandler := grpchandler.NewServer(svc)
+	var grpcHandler *grpchandler.Server
+
+	if len(cfg.KafkaBrokers) > 0 {
+		p := producer.NewKafkaProducer(cfg.KafkaBrokers, cfg.KafkaTopic)
+		defer p.Close()
+		grpcHandler = grpchandler.NewServer(svc, p)
+	} else {
+		grpcHandler = grpchandler.NewServer(svc, nil)
+	}
+
 	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(grpchandler.RecoveryInterceptor, grpchandler.LoggingInterceptor))
 	shortenerv1.RegisterShortenerServiceServer(grpcServer, grpcHandler)
 

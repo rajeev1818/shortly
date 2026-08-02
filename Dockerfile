@@ -7,9 +7,12 @@ RUN go mod download
 COPY . .
 RUN go build -o gateway ./cmd/gateway
 RUN go build -o shortener ./cmd/shortener
+RUN go build -o analytics ./cmd/analytics
+
 
 FROM alpine:3.19
 WORKDIR /app
 COPY --from=builder /app/gateway .
 COPY --from=builder /app/shortener .
+COPY --from=builder /app/analytics .
 COPY migrations/ ./migrations/
