@@ -70,7 +70,7 @@ func main() {
 	svc := service.NewURLService(repo, redisCache)
 
 	grpcHandler := grpchandler.NewServer(svc)
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(grpchandler.RecoveryInterceptor, grpchandler.LoggingInterceptor))
 	shortenerv1.RegisterShortenerServiceServer(grpcServer, grpcHandler)
 
 	lis, err := net.Listen("tcp", ":9090")
