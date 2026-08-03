@@ -6,18 +6,22 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	shortenerv1 "github.com/rajeev1818/shortly/proto"
+	"github.com/rajeev1818/shortly/proto/analyticsv1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 type Handler struct {
-	client shortenerv1.ShortenerServiceClient
+	client          shortenerv1.ShortenerServiceClient
+	analyticsClient analyticsv1.AnalyticsServiceClient
 }
 
-func NewHandler(client shortenerv1.ShortenerServiceClient) *Handler {
+func NewHandler(client shortenerv1.ShortenerServiceClient, analytics analyticsv1.AnalyticsServiceClient) *Handler {
 	return &Handler{
-		client: client,
+		client:          client,
+		analyticsClient: analytics,
 	}
 }
 
@@ -80,6 +84,28 @@ func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, resp.LongUrl, http.StatusFound)
+}
+
+func (h *Handler) Stats(w http.ResponseWriter, r *http.Request) {
+	code := chi.URLParam(r, "code")
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	resp, err := h.analyticsClient.GetStats(ctx, &analyticsv1.GetStatsRequest{ShortCode: code})
+
+	if err != nil {
+		st := status.Convert(err)
+		if st.Code() == codes.NotFound {
+			writeError(w, "code not found", http.StatusNotFound)
+			return
+		}
+		writeError(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 func writeError(w http.ResponseWriter, msg string, status int) {

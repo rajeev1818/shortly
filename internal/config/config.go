@@ -17,13 +17,16 @@ type ShortenerConfig struct {
 type GatewayConfig struct {
 	Port          int    `env:"PORT" envDefault:"8080"`
 	ShortenerAddr string `env:"SHORTENER_ADDR" envDefault:"localhost:9090"`
+	AnalyticsAddr string `env:"ANALYTICS_ADDR" envDefault:"localhost:9091"`
 	RedisURL      string `env:"REDIS_URL" envDefault:"redis://localhost:6379"`
-	RateLimit     int    `env:"RATE_LIMIT" envDefault:"10"`      // requests per window
-	RateWindow    int    `env:"RATE_WINDOW_SEC" envDefault:"60"` // window in seconds
+	RateLimit     int    `env:"RATE_LIMIT" envDefault:"10"`
+	RateWindow    int    `env:"RATE_WINDOW_SEC" envDefault:"60"`
 }
 
 type AnalyticsConfig struct {
+	Port         int      `env:"PORT" envDefault:"9091"`
 	DatabaseURL  string   `env:"DATABASE_URL,required"`
+	RedisURL     string   `env:"REDIS_URL" envDefault:"redis://localhost:6379"`
 	KafkaBrokers []string `env:"KAFKA_BROKERS" envSeparator:","`
 	KafkaTopic   string   `env:"KAFKA_TOPIC" envDefault:"click.events"`
 	KafkaGroup   string   `env:"KAFKA_GROUP" envDefault:"analytics"`

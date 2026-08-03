@@ -16,6 +16,7 @@ import (
 	"github.com/rajeev1818/shortly/internal/config"
 	"github.com/rajeev1818/shortly/internal/gateway/ratelimit"
 	shortenerv1 "github.com/rajeev1818/shortly/proto"
+	"github.com/rajeev1818/shortly/proto/analyticsv1"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -39,9 +40,18 @@ func main() {
 	}
 	defer conn.Close()
 
-	shortenerClient := shortenerv1.NewShortenerServiceClient(conn)
+	analyticsconn, err := grpc.NewClient(cfg.AnalyticsAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
-	h := handler.NewHandler(shortenerClient)
+	if err != nil {
+		slog.Error("failed to connect to analytics", "error", err)
+		os.Exit(1)
+	}
+	defer analyticsconn.Close()
+
+	shortenerClient := shortenerv1.NewShortenerServiceClient(conn)
+	analyticsClient := analyticsv1.NewAnalyticsServiceClient(analyticsconn)
+
+	h := handler.NewHandler(shortenerClient, analyticsClient)
 
 	opt, err := redis.ParseURL(cfg.RedisURL)
 
@@ -61,6 +71,7 @@ func main() {
 
 	r.Post("/shorten", h.Shorten)
 	r.Get("/{code}", h.Redirect)
+	r.Get("/stats/{code}", h.Stats)
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),

@@ -1,0 +1,22 @@
+syntax = "proto3";
+package analytics.v1;
+option go_package = "github.com/rajeev1818/shortly/proto/analyticsv1";
+
+service AnalyticsService {
+    rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
+}
+
+message GetStatsRequest {
+    string short_code = 1;
+}
+
+message GetStatsResponse {
+    string short_code = 1;
+    int64 total_clicks = 2;
+    repeated HourlyBucket hourly = 3;
+}
+
+message HourlyBucket {
+    string hour = 1;
+    int64 clicks = 2;
+}
